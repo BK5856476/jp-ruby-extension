@@ -1,5 +1,6 @@
 from fugashi import Tagger # 分词器
 import re # 正则表达式
+from deep_translator import GoogleTranslator # 翻译器
 
 # 初始化 MeCab 分词器 (Tagger)
 # fugashi 会自动查找已安装的词典 (如 unidic-lite)
@@ -28,6 +29,16 @@ def katakana_to_hiragana(text: str) -> str:
         else:
             result.append(ch)
     return "".join(result)
+
+
+# 翻译函数：将日语翻译为中文
+def translate_text(text: str) -> str:
+    try:
+        translated = GoogleTranslator(source='ja', target='zh-CN').translate(text)
+        return translated
+    except Exception as e:
+        print(f"翻译出错: {e}")
+        return ""
 
 
 def analyze_text(text: str):

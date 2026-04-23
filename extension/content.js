@@ -1,10 +1,13 @@
 // content.js - Day 4: DOM Replacement Implementation
 
 let isEnabled = true;
+let translateEnabled = false;
 
 // 初始化时获取状态
-chrome.storage.sync.get(['enabled'], (result) => {
+chrome.storage.sync.get(['enabled', 'translateEnabled'], (result) => {
     isEnabled = result.enabled !== false;
+    // 默认开启翻译，方便用户直接体验
+    translateEnabled = result.translateEnabled !== false; 
 });
 
 // 监听状态变化
@@ -12,12 +15,17 @@ chrome.storage.onChanged.addListener((changes) => {
     if (changes.enabled) {
         isEnabled = changes.enabled.newValue !== false;
     }
+    if (changes.translateEnabled) {
+        translateEnabled = changes.translateEnabled.newValue === true;
+    }
 });
 
 // 监听来自 popup 的指令
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'startGlobalAnnotation') {
         annotateAllKanji();
+    } else if (request.action === 'clearAllAnnotations') {
+        clearAllAnnotations();
     }
 });
 
@@ -78,7 +86,12 @@ async function annotateAllKanji() {
                 });
 
                 if (!response.ok) return;
-                const tokens = await response.json();
+                const data = await response.json();
+                let tokens = data;
+                if (data.tokens) {
+                    tokens = data.tokens;
+                }
+                if (!Array.isArray(tokens)) return;
 
                 // 构建 Ruby 片段
                 const fragment = document.createDocumentFragment();
@@ -95,6 +108,9 @@ async function annotateAllKanji() {
                     }
                 });
 
+                // 如果开启了翻译模式且在全局模式下（可选：全局模式下显示翻译可能会让页面很乱）
+                // 这里暂时不在全局模式下显示翻译，除非用户强烈要求
+                
                 // 替换节点
                 if (textNode.parentNode) {
                     textNode.parentNode.replaceChild(fragment, textNode);
@@ -111,12 +127,49 @@ async function annotateAllKanji() {
     console.log("✅ 全网页分析完成");
 }
 
+/**
+ * 清除页面上所有的注音和翻译，恢复原样
+ */
+function clearAllAnnotations() {
+    // 1. 移除所有翻译容器 (包括我们新版的 span 和旧版的 div)
+    document.querySelectorAll('.jp-ruby-translation').forEach(el => {
+        // 如果翻译是作为 ruby 的 rt 存在的，它会在下一步被 ruby 的还原逻辑处理
+        // 如果它是独立的 div/span，这里直接删除
+        el.remove();
+    });
+
+    // 2. 还原所有 ruby 标签
+    // 我们从 DOM 中找到所有 ruby，将其替换为不含 rt 的纯文本
+    const rubies = Array.from(document.querySelectorAll('ruby'));
+    rubies.forEach(ruby => {
+        // 创建一个临时容器来提取纯文本（避开 rt 里的假名）
+        const clone = ruby.cloneNode(true);
+        const rts = clone.querySelectorAll('rt');
+        rts.forEach(rt => rt.remove());
+        
+        const originalText = clone.textContent;
+        ruby.replaceWith(document.createTextNode(originalText));
+    });
+
+    console.log("🧹 已清除所有注音和翻译");
+}
+
 document.addEventListener('mouseup', async () => {
-    // 如果插件被禁用，则不执行逻辑
-    if (!isEnabled) return;
+    // 如果两个功能都禁用了，则不执行逻辑
+    if (!isEnabled && !translateEnabled) return;
 
     // 1. 获取选区对象
     const selection = window.getSelection();
+    
+    // 防重复处理：如果选区在 ruby 标签内，或者选区本身包含 ruby 标签，则跳过
+    let anchor = selection.anchorNode;
+    if (anchor) {
+        let el = anchor.nodeType === 3 ? anchor.parentElement : anchor;
+        if (el && typeof el.closest === 'function' && el.closest('ruby')) {
+            return;
+        }
+    }
+    
     const text = selection.toString().trim();
 
     // 如果没选中东西，直接返回
@@ -134,47 +187,75 @@ document.addEventListener('mouseup', async () => {
         const response = await fetch('http://127.0.0.1:8000/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text })
+            body: JSON.stringify({ 
+                text: text,
+                need_translation: translateEnabled // 只有开启时才请求翻译，节省性能
+            })
         });
 
-        const tokens = await response.json();
-        console.log("✅收到数据:", tokens);
+        const data = await response.json();
+        let tokens = data;
+        let translation = "";
+        if (data.tokens) {
+            tokens = data.tokens;
+            translation = data.full_translation;
+        }
+        
+        if (!Array.isArray(tokens)) {
+            console.error("❌ 数据格式错误", data);
+            return;
+        }
+        console.log("✅收到数据:", data);
 
         // 4. 构建新的 HTML 片段 (DocumentFragment)
-        // 使用 Fragment 可以减少页面重绘次数，性能更好
         const fragment = document.createDocumentFragment();
 
+        // 创建一个包装容器，用于承载所有选中的词
+        const wrapper = document.createElement('span');
+        wrapper.style.display = 'inline';
+
         tokens.forEach(token => {
-            if (token.ruby) { // 后端返回 ruby=true 说明需要注音
-                // 创建 <ruby> 元素
-                // 结构: <ruby>汉字<rt>假名</rt></ruby>
+            if (isEnabled && token.ruby) {
                 const rubyEl = document.createElement('ruby');
-
-                const originalText = document.createTextNode(token.surface);
-                const rtEl = document.createElement('rt');
-                rtEl.textContent = token.reading;
-
-                rubyEl.appendChild(originalText);
-                rubyEl.appendChild(rtEl);
-
-                // 添加样式优化 (可选，防止注音影响行高)
-                // rubyEl.style.margin = "0 2px"; 
-
-                fragment.appendChild(rubyEl);
+                rubyEl.style.rubyPosition = 'over'; // 强制假名在上方
+                rubyEl.style.webkitRubyPosition = 'over';
+                rubyEl.innerHTML = `${token.surface}<rt>${token.reading}</rt>`;
+                wrapper.appendChild(rubyEl);
             } else {
-                // 不需要注音的词 (如平假名、标点)，直接原样显示
-                const textNode = document.createTextNode(token.surface);
-                fragment.appendChild(textNode);
+                wrapper.appendChild(document.createTextNode(token.surface));
             }
         });
 
+        // 如果开启了翻译模式，将整个 wrapper 再次包装进一个 ruby 中，实现“下方注音”
+        if (translateEnabled && translation) {
+            const outerRuby = document.createElement('ruby');
+            outerRuby.style.rubyPosition = 'under'; // 关键：注音显示在下方
+            // 某些浏览器需要这个前缀或特定写法
+            outerRuby.style.webkitRubyPosition = 'under'; 
+            
+            // 把刚才构建好的原文/假名放进去
+            outerRuby.appendChild(wrapper);
+            
+            // 创建翻译用的 rt
+            const rtTrans = document.createElement('rt');
+            rtTrans.style.fontSize = '0.75em';
+            rtTrans.style.fontStyle = 'normal';
+            rtTrans.style.display = 'ruby-text';
+            // 不设置特定颜色，使其跟随文本颜色
+            rtTrans.textContent = translation;
+            
+            outerRuby.appendChild(rtTrans);
+            fragment.appendChild(outerRuby);
+        } else {
+            // 如果没开翻译，直接把 wrapper 放进 fragment
+            fragment.appendChild(wrapper);
+        }
+
         // 5. DOM 替换操作
-        // 先删除选区内的原有文本
         range.deleteContents();
-        // 再插入我们要的 Ruby 片段
         range.insertNode(fragment);
 
-        // 6. 清除选区 (避免文字仍处于选中状态，视觉上更整洁)
+        // 6. 清除选区
         selection.removeAllRanges();
 
     } catch (error) {

@@ -1,25 +1,47 @@
 document.addEventListener('DOMContentLoaded', () => {
     const toggle = document.getElementById('enableToggle');
     const globalToggle = document.getElementById('globalToggle');
+    const translateToggle = document.getElementById('translateToggle');
+    const clearBtn = document.getElementById('clearBtn');
     const statusMessage = document.getElementById('statusMessage');
 
+    // 清除标注按钮逻辑
+    clearBtn.addEventListener('click', () => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs[0]) {
+                chrome.tabs.sendMessage(tabs[0].id, { action: 'clearAllAnnotations' });
+            }
+        });
+    });
+
+    function updateStatusUI() {
+        if (toggle.checked || translateToggle.checked) {
+            statusMessage.textContent = 'Service Active';
+            statusMessage.className = 'status-active';
+        } else {
+            statusMessage.textContent = 'Service Inactive';
+            statusMessage.className = 'status-inactive';
+        }
+    }
+
     // Load current state
-    chrome.storage.sync.get(['enabled', 'globalEnabled'], (result) => {
-        // Default to true if not set
+    chrome.storage.sync.get(['enabled', 'globalEnabled', 'translateEnabled'], (result) => {
+        // Default values
         const isEnabled = result.enabled !== false;
         const isGlobalEnabled = result.globalEnabled === true;
+        const isTranslateEnabled = result.translateEnabled !== false; // Default true
         
         toggle.checked = isEnabled;
         globalToggle.checked = isGlobalEnabled;
+        translateToggle.checked = isTranslateEnabled;
         
-        updateStatusUI(isEnabled);
+        updateStatusUI();
     });
 
     // Save state on change
     toggle.addEventListener('change', () => {
-        const isEnabled = toggle.checked;
-        chrome.storage.sync.set({ enabled: isEnabled }, () => {
-            updateStatusUI(isEnabled);
+        chrome.storage.sync.set({ enabled: toggle.checked }, () => {
+            updateStatusUI();
         });
     });
 
@@ -28,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isGlobalEnabled = globalToggle.checked;
         chrome.storage.sync.set({ globalEnabled: isGlobalEnabled }, () => {
             if (isGlobalEnabled) {
-                // Send message to current tab to start global annotation
                 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                     if (tabs[0]) {
                         chrome.tabs.sendMessage(tabs[0].id, { action: 'startGlobalAnnotation' });
@@ -38,13 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    function updateStatusUI(isEnabled) {
-        if (isEnabled) {
-            statusMessage.textContent = 'Service Active';
-            statusMessage.className = 'status-active';
-        } else {
-            statusMessage.textContent = 'Service Inactive';
-            statusMessage.className = 'status-inactive';
-        }
-    }
+    // Translation toggle logic
+    translateToggle.addEventListener('change', () => {
+        chrome.storage.sync.set({ translateEnabled: translateToggle.checked }, () => {
+            updateStatusUI();
+        });
+    });
 });
+

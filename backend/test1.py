@@ -1,5 +1,5 @@
 import json
-from analyze import analyze_text   # 导入核心解析函数
+from analyze import analyze_text, translate_text   # 导入核心解析和翻译函数
 
 def pretty(result):
     """
@@ -7,7 +7,6 @@ def pretty(result):
     ensure_ascii=False 保证日语/中文能正常显示，而不是转义符。
     """
     print(json.dumps(result, ensure_ascii=False, indent=2))
-
 
 def run_test(title, text):
     """
@@ -22,7 +21,16 @@ def run_test(title, text):
     print("Input:", text)
     
     # 调用解析函数
-    result = analyze_text(text)
+    tokens = analyze_text(text)
+    
+    # 调用翻译函数
+    translation = translate_text(text)
+    
+    # 模拟 API 响应结构
+    result = {
+        "tokens": tokens,
+        "full_translation": translation
+    }
     
     # 打印结果
     pretty(result)
