@@ -3,6 +3,10 @@
     "name": "jp-ruby-extension",
     "version": "1.0",
     "description": "选中文本，请求本地 NLP 服务",
+    "permissions": ["storage"],
+    "action": {
+        "default_popup": "popup.html"
+    },
     "content_scripts": [
         {
             "matches": [

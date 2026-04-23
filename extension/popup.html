@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JP Ruby Settings</title>
+    <link rel="stylesheet" href="popup.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>JP Ruby</h1>
+            <p class="subtitle">Japanese Furigana Assistant</p>
+        </header>
+        
+        <main>
+            <div class="setting-item">
+                <div class="setting-info">
+                    <span class="setting-title">Selection Mode</span>
+                    <span class="setting-desc">Annotate text on selection</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="enableToggle" checked>
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="setting-item" style="margin-top: 16px;">
+                <div class="setting-info">
+                    <span class="setting-title">Global Mode</span>
+                    <span class="setting-desc">Annotate the entire page</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="globalToggle">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+        </main>
+
+        <footer>
+            <div id="statusMessage" class="status-active">Service Active</div>
+        </footer>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>
