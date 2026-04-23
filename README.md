@@ -30,7 +30,7 @@ pip install fastapi uvicorn fugashi unidic-lite
 ```bash
 python main.py
 ```
-*成功启动后，您会看到 `Uvicorn running on http://127.0.0.1:8000`。请保持此窗口开启。*
+*成功启动后，您会看到 `Uvicorn running on http://127.0.0.1:18000`。请保持此窗口开启。*
 
 ### 2. 加载浏览器插件 (Extension)
 

@@ -55,5 +55,5 @@ def analyze_endpoint(request: AnalyzeRequest):
 
 # 启动入口 (仅在直接运行此文件时执行)
 if __name__ == "__main__":
-    # 使用 uvicorn 启动服务，监听 8000 端口
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # 使用 uvicorn 启动服务，监听 18000 端口
+    uvicorn.run(app, host="127.0.0.1", port=18000)
