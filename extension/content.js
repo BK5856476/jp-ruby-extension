@@ -2,12 +2,14 @@
 
 let isEnabled = true;
 let translateEnabled = false;
+let globalEnabled = false; // 新增：追踪全局模式状态
 
 // 初始化时获取状态
-chrome.storage.sync.get(['enabled', 'translateEnabled'], (result) => {
+chrome.storage.sync.get(['enabled', 'translateEnabled', 'globalEnabled'], (result) => {
     isEnabled = result.enabled !== false;
     // 默认开启翻译，方便用户直接体验
     translateEnabled = result.translateEnabled !== false; 
+    globalEnabled = result.globalEnabled === true;
 });
 
 // 监听状态变化
@@ -17,6 +19,9 @@ chrome.storage.onChanged.addListener((changes) => {
     }
     if (changes.translateEnabled) {
         translateEnabled = changes.translateEnabled.newValue === true;
+    }
+    if (changes.globalEnabled) {
+        globalEnabled = changes.globalEnabled.newValue === true;
     }
 });
 
@@ -100,6 +105,9 @@ async function annotateAllKanji() {
                         const rubyEl = document.createElement('ruby');
                         rubyEl.appendChild(document.createTextNode(token.surface));
                         const rtEl = document.createElement('rt');
+                        rtEl.style.userSelect = 'none';
+                        rtEl.style.webkitUserSelect = 'none';
+                        rtEl.style.pointerEvents = 'none';
                         rtEl.textContent = token.reading;
                         rubyEl.appendChild(rtEl);
                         fragment.appendChild(rubyEl);
@@ -154,31 +162,59 @@ function clearAllAnnotations() {
     console.log("🧹 已清除所有注音和翻译");
 }
 
+/**
+ * 辅助函数：从 Range 中提取纯文本，忽略 <rt> 标签（避开假名干扰）
+ */
+function getCleanTextFromRange(range) {
+    // 克隆选区内容
+    const clone = range.cloneContents();
+    // 找到克隆内容中所有的 rt 标签并移除
+    const rts = clone.querySelectorAll('rt');
+    rts.forEach(rt => rt.remove());
+    // 返回清洗后的纯文本
+    return clone.textContent.trim();
+}
+
 document.addEventListener('mouseup', async () => {
     // 如果两个功能都禁用了，则不执行逻辑
     if (!isEnabled && !translateEnabled) return;
 
     // 1. 获取选区对象
     const selection = window.getSelection();
-    
-    // 防重复处理：如果选区在 ruby 标签内，或者选区本身包含 ruby 标签，则跳过
-    let anchor = selection.anchorNode;
-    if (anchor) {
-        let el = anchor.nodeType === 3 ? anchor.parentElement : anchor;
-        if (el && typeof el.closest === 'function' && el.closest('ruby')) {
-            return;
-        }
-    }
-    
-    const text = selection.toString().trim();
+    if (selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+
+    // 2. 提取并清洗文本（如果选中了已注音的文字，去掉假名）
+    const text = getCleanTextFromRange(range);
 
     // 如果没选中东西，直接返回
     if (!text) return;
 
-    // 2. 关键：立即捕获当前选区的 Range 对象
-    // 如果我们在 await 之后再获取，用户可能已经点击了别处，导致位置丢失
-    if (selection.rangeCount === 0) return;
-    const range = selection.getRangeAt(0);
+    // --- 修复叠加 Bug：对齐选区边界 ---
+    // 如果选区的起点或终点在 ruby 内部，我们要把边界向外扩展到 ruby 的边缘
+    // 这样 deleteContents() 就能干净地移除旧的注音结构
+    
+    // 辅助函数：找到最外层的 ruby 容器
+    const getTopRuby = (node) => {
+        let el = node.nodeType === 3 ? node.parentElement : node;
+        let ruby = el.closest('ruby');
+        if (ruby) {
+            while (ruby.parentElement && ruby.parentElement.closest('ruby')) {
+                ruby = ruby.parentElement.closest('ruby');
+            }
+        }
+        return ruby;
+    };
+
+    let startRuby = getTopRuby(range.startContainer);
+    if (startRuby) range.setStartBefore(startRuby);
+
+    let endRuby = getTopRuby(range.endContainer);
+    if (endRuby) range.setEndAfter(endRuby);
+    // -----------------------------------
+
+    // 防重复处理：
+    // 如果“注音”和“翻译”都关了，或者选区为空，则退出
 
     console.log("👉 正在请求分析:", text);
 
@@ -215,11 +251,12 @@ document.addEventListener('mouseup', async () => {
         wrapper.style.display = 'inline';
 
         tokens.forEach(token => {
-            if (isEnabled && token.ruby) {
+            // 只要开启了注音功能，或者当前正处于全局注音模式，我们就保留注音
+            if ((isEnabled || globalEnabled) && token.ruby) {
                 const rubyEl = document.createElement('ruby');
                 rubyEl.style.rubyPosition = 'over'; // 强制假名在上方
                 rubyEl.style.webkitRubyPosition = 'over';
-                rubyEl.innerHTML = `${token.surface}<rt>${token.reading}</rt>`;
+                rubyEl.innerHTML = `${token.surface}<rt style="user-select:none; -webkit-user-select:none; pointer-events:none;">${token.reading}</rt>`;
                 wrapper.appendChild(rubyEl);
             } else {
                 wrapper.appendChild(document.createTextNode(token.surface));
@@ -238,6 +275,9 @@ document.addEventListener('mouseup', async () => {
             
             // 创建翻译用的 rt
             const rtTrans = document.createElement('rt');
+            rtTrans.style.userSelect = 'none';
+            rtTrans.style.webkitUserSelect = 'none';
+            rtTrans.style.pointerEvents = 'none';
             rtTrans.style.fontSize = '0.75em';
             rtTrans.style.fontStyle = 'normal';
             rtTrans.style.display = 'ruby-text';

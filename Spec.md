@@ -40,16 +40,44 @@
 
 ## 4. 统一数据结构（后端 → 前端）
 
-后端必须返回如下结构的 JSON 数组：
+后端 API 接口 `/analyze` 接收 `AnalyzeRequest`，返回 `FullAnalyzeResponse`。
 
+### 4.1 请求结构 (Request)
 ```json
 {
-  "surface": "解析",
-  "reading": "かいせき",
-  "pos": "名詞",
-  "has_kanji": true,
-  "ruby": true,
-  "selected": false,
-  "translation": null
+  "text": "测试文本",
+  "need_translation": true
 }
 ```
+
+### 4.2 响应结构 (Response)
+```json
+{
+  "tokens": [
+    {
+      "surface": "解析",
+      "reading": "かいせき",
+      "pos": "名詞",
+      "has_kanji": true,
+      "ruby": true,
+      "selected": false,
+      "translation": null
+    }
+  ],
+  "full_translation": "分析"
+}
+```
+
+---
+
+## 5. UI 与 交互规则
+
+- **双层 Ruby 布局**：
+  - 假名注音使用 `ruby-position: over`（上方）。
+  - 翻译内容使用 `ruby-position: under`（下方），颜色跟随正文。
+- **选区保护**：
+  - 对已注音/已翻译内容再次选中时，选区会自动向外扩展至最外层 `ruby` 标签，确保替换时不产生嵌套 Bug。
+- **清除功能**：
+  - 点击 "Clear All" 必须能够通过 DOM 还原将页面恢复至纯文本状态，而不引起页面刷新。
+- **事件穿透**：
+  - `rt` 标签必须设置 `user-select: none` 和 `pointer-events: none`。
