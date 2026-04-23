@@ -1,4 +1,4 @@
-# Japanese Ruby Extension (日语注音插件) - MVP
+# KanjiRuby - 日语汉字注音助手
 
 这是一个能够自动为网页上的日语汉字添加平假名注音的浏览器开发工具。它由 Python 后端（提供分词分析）和 Chrome 插件（负责前端显示）组成。
 

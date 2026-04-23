@@ -1,4 +1,4 @@
-# Japanese Ruby & Translation Extension – Specification
+# KanjiRuby – Specification
 
 ## 1. 项目目标
 

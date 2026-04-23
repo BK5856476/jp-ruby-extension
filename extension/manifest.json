@@ -1,9 +1,16 @@
 {
     "manifest_version": 3,
-    "name": "jp-ruby-extension",
+    "name": "KanjiRuby",
     "version": "1.0",
-    "description": "选中文本，请求本地 NLP 服务",
-    "permissions": ["storage"],
+    "description": "让日语汉字变得简单，一键添加假名注音。",
+    "icons": {
+        "16": "icons/icon16.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+    },
+    "permissions": [
+        "storage"
+    ],
     "action": {
         "default_popup": "popup.html"
     },
